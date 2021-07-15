@@ -16,6 +16,3 @@ export interface Fiber {
   effectTag?: "PLACEMENT" | "UPDATE" | "DELETION";
   props: Props;
 }
-
-export type KeyChecker = (key: string) => boolean;
-export type PropsChecker = (prev: Props, next: Props) => (key: string) => boolean;
