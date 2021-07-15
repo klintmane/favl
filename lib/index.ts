@@ -13,7 +13,7 @@ let hookIndex = null;
 
 // UTILS
 
-const isEqual = (a, b) => JSON.stringify(a) === JSON.stringify(b); // bugged - JSON.stringify does not ensure order!
+const depsChanged = (a: any[], b: any[]) => !a || a.length !== b.length || b.some((arg, index) => arg !== a[index]);
 
 // LIB
 
@@ -223,7 +223,7 @@ export const useEffect = (cb: () => void, deps: any[]) => {
     // invoke callback if this is the first time
     cb();
   } else {
-    if (!isEqual(oldHook.deps, hook.deps)) {
+    if (depsChanged(oldHook.deps, hook.deps)) {
       cb();
     }
   }
@@ -241,10 +241,10 @@ export const useMemo = <T>(compute: () => T, deps: any[]): T => {
   const hook = { value: null, deps };
 
   if (oldHook) {
-    if (isEqual(oldHook.deps, hook.deps)) {
-      hook.value = oldHook.value;
-    } else {
+    if (depsChanged(oldHook.deps, hook.deps)) {
       hook.value = compute();
+    } else {
+      hook.value = oldHook.value;
     }
   } else {
     hook.value = compute();
