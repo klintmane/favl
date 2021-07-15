@@ -4,11 +4,7 @@ import Stress from "./stress";
 const App = () => {
   const [count, setCount] = useState(0);
 
-  return (
-    <div>
-      <Stress />
-    </div>
-  );
+  return <Stress />;
 };
 
 render(<App />, document.getElementById("app"));
