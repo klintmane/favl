@@ -11,6 +11,9 @@ let wipFiber: Fiber = null;
 let hookIndex = null;
 
 // UTILS
+
+const isEqual = (a, b) => JSON.stringify(a) === JSON.stringify(b); // bugged - JSON.stringify does not ensure order!
+
 const setProp = (e: HTMLElement, n: string, v: any) => (e.setAttribute ? e.setAttribute(n, v) : (e[n] = v));
 const removeProp = (e: HTMLElement, n: string) => (e.removeAttribute ? e.removeAttribute(n) : (e[n] = ""));
 
@@ -252,4 +255,56 @@ export const useState = <T>(initial: T): [T, (action: (prevState: T) => T) => vo
   hookIndex++;
 
   return [hook.state, setState];
+};
+
+export const useEffect = (cb: () => void, deps: any[]) => {
+  const oldHook = wipFiber.alternate && wipFiber.alternate.hooks && wipFiber.alternate.hooks[hookIndex];
+
+  const hook = { deps };
+
+  if (!oldHook) {
+    // invoke callback if this is the first time
+    cb();
+  } else {
+    if (!isEqual(oldHook.deps, hook.deps)) {
+      cb();
+    }
+  }
+
+  wipFiber.hooks.push(hook);
+  hookIndex++;
+};
+
+export const useCallback = <T>(cb: T, deps: any[]): T => {
+  return useMemo(() => cb, deps);
+};
+
+export const useMemo = <T>(compute: () => T, deps: any[]): T => {
+  const oldHook = wipFiber.alternate && wipFiber.alternate.hooks && wipFiber.alternate.hooks[hookIndex];
+  const hook = { value: null, deps };
+
+  if (oldHook) {
+    if (isEqual(oldHook.deps, hook.deps)) {
+      hook.value = oldHook.value;
+    } else {
+      hook.value = compute();
+    }
+  } else {
+    hook.value = compute();
+  }
+
+  wipFiber.hooks.push(hook);
+  hookIndex++;
+
+  return hook.value;
+};
+
+export const useRef = <T>(initial: T): { current: T } => {
+  const oldHook = wipFiber.alternate && wipFiber.alternate.hooks && wipFiber.alternate.hooks[hookIndex];
+  const hook = { value: oldHook ? oldHook.value : { current: initial } };
+
+  wipFiber.hooks.push(hook);
+  hookIndex++;
+
+  return hook.value;
 };
