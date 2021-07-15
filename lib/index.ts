@@ -11,6 +11,8 @@ let wipFiber: Fiber = null;
 let hookIndex = null;
 
 // UTILS
+const setProp = (e: HTMLElement, n: string, v: any) => (e.setAttribute ? e.setAttribute(n, v) : (e[n] = v));
+const removeProp = (e: HTMLElement, n: string) => (e.removeAttribute ? e.removeAttribute(n) : (e[n] = ""));
 
 const isEvent = (key: string) => key.startsWith("on");
 const isProperty = (key: string) => key !== "children" && !isEvent(key);
@@ -46,11 +48,16 @@ const unmount = () => {
 };
 
 const createDOM = (fiber: Fiber): HTMLElement => {
-  const dom = fiber.type === "TEXT_ELEMENT" ? document.createTextNode("") : document.createElement(fiber.type);
+  const dom =
+    fiber.type === "TEXT_ELEMENT"
+      ? document.createTextNode("")
+      : fiber.type === "svg" // store this in a variable - so children can check this too (otherwise svg elements won't render)
+      ? document.createElementNS("http://www.w3.org/2000/svg", fiber.type)
+      : document.createElement(fiber.type);
+
   updateDOM(dom, { children: [] }, fiber.props);
   return dom;
 };
-
 const updateDOM = (dom: HTMLElement, prevProps: Props, nextProps: Props) => {
   // Remove old or changed event listeners
   Object.keys(prevProps || {})
@@ -62,13 +69,13 @@ const updateDOM = (dom: HTMLElement, prevProps: Props, nextProps: Props) => {
   Object.keys(prevProps || {})
     .filter(isProperty)
     .filter(isGone(prevProps, nextProps))
-    .forEach((name) => (dom[name] = ""));
+    .forEach((name) => removeProp(dom, name));
 
   // Set new or changed properties
   Object.keys(nextProps || {})
     .filter(isProperty)
     .filter(isNew(prevProps, nextProps))
-    .forEach((name) => (dom[name] = nextProps[name]));
+    .forEach((name) => setProp(dom, name, nextProps[name]));
 
   // Add event listeners
   Object.keys(nextProps || {})
