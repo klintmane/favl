@@ -109,6 +109,7 @@ const commitWork = (fiber: Fiber) => {
     updateDOM(fiber.dom, fiber.alternate.props, fiber.props);
   } else if (fiber.effectTag === "DELETION") {
     commitDeletion(fiber, domParent);
+    return;
   }
 
   commitWork(fiber.child);
