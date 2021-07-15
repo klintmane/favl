@@ -240,7 +240,7 @@ export const useState = <T>(initial: T): [T, (action: (prevState: T) => T) => vo
   // Apply the queued setState actions
   const actions = oldHook ? oldHook.queue : [];
   actions.forEach((action) => {
-    // hook.state = action(hook.state); // maybe reducer?
+    hook.state = typeof action === "function" ? action(hook.state) : action;
     hook.state = action;
   });
 
