@@ -107,6 +107,8 @@ const commitWork = (fiber: Fiber) => {
     domParent.appendChild(fiber.dom);
   } else if (fiber.effectTag === "UPDATE" && fiber.dom != null) {
     updateDOM(fiber.dom, fiber.alternate.props, fiber.props);
+
+    // In here we need to append or insertBefore depending on keys - we need a keyed implementation: https://github.com/pomber/didact/issues/9
   } else if (fiber.effectTag === "DELETION") {
     commitDeletion(fiber, domParent);
     return;
