@@ -1,18 +1,16 @@
-export type Elem = any;
-
-export interface Props {
+export interface Props<T = {}> {
   nodeValue?: string;
-  children: Fiber[];
+  children: Fiber<T>[];
 }
 
-export interface Fiber {
-  dom?: HTMLElement;
+export type Fiber<T = {}> = {
+  dom?: T;
   hooks?: any[];
-  parent?: Fiber;
-  child?: Fiber;
-  sibling?: Fiber;
-  alternate?: Fiber;
-  type?: Elem;
+  parent?: Fiber<T>;
+  child?: Fiber<T>;
+  sibling?: Fiber<T>;
+  alternate?: Fiber<T>;
+  type?: string;
   effectTag?: "PLACEMENT" | "UPDATE" | "DELETION";
-  props: Props;
-}
+  props: Props<T>;
+};

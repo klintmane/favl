@@ -1,4 +1,5 @@
-import type { Elem, Fiber, Props } from "./types";
+import type { Fiber, Props } from "./types";
+import reconciler from "./dom";
 
 // STATE
 
@@ -14,21 +15,6 @@ let hookIndex = null;
 
 const isEqual = (a, b) => JSON.stringify(a) === JSON.stringify(b); // bugged - JSON.stringify does not ensure order!
 
-// e.(set|remove)Attribute fix issues with svg elements, while the latter works with text nodes
-const setProp = (e: HTMLElement, n: string, v: any) => (e.setAttribute ? e.setAttribute(n, v) : (e[n] = v));
-const removeProp = (e: HTMLElement, n: string) => (e.removeAttribute ? e.removeAttribute(n) : (e[n] = ""));
-
-const isEvent = (p: string) => p.startsWith("on");
-const isProp = (p: string) => p !== "children" && !isEvent(p);
-const isNew = (prev: Props, next: Props, p: string) => prev[p] !== next[p];
-const isGone = (next: Props, p: string) => !(p in next);
-
-const toAddProp = (prev: Props, next: Props, n: string) => isProp(n) && isNew(prev, next, n);
-const toDelProp = (prev: Props, next: Props, n: string) => isProp(n) && isGone(next, n);
-
-const toAddEvent = (prev: Props, next: Props, n: string) => isEvent(n) && isNew(prev, next, n);
-const toDelEvent = (prev: Props, next: Props, n: string) => isEvent(n) && (isGone(next, n) || isNew(prev, next, n));
-
 // LIB
 
 const createTextFiber = (txt: string): Fiber => ({
@@ -36,7 +22,7 @@ const createTextFiber = (txt: string): Fiber => ({
   props: { nodeValue: txt, children: [] },
 });
 
-const createFiber = (type: Elem, p?: Props, ...ch): Fiber => ({
+const createFiber = (type: string, p?: Props, ...ch): Fiber => ({
   type,
   props: { ...p, children: ch.flat().map((c) => (typeof c === "object" ? c : createTextFiber(c))) },
 });
@@ -57,32 +43,6 @@ const unmount = () => {
   deletions = null;
 };
 
-const createDOM = (fiber: Fiber): HTMLElement => {
-  const dom =
-    fiber.type === "TEXT_ELEMENT"
-      ? document.createTextNode("")
-      : fiber.type === "svg" // store this in a variable - so children can check this too (otherwise svg elements won't render)
-      ? document.createElementNS("http://www.w3.org/2000/svg", fiber.type)
-      : document.createElement(fiber.type);
-
-  updateDOM(dom, { children: [] }, fiber.props);
-  return dom;
-};
-
-const updateDOM = (dom: HTMLElement, prev: Props, next: Props) => {
-  for (const p in prev) {
-    toDelEvent(prev, next, p)
-      ? dom.removeEventListener(p.toLowerCase().substring(2), prev[p])
-      : toDelProp(prev, next, p) && removeProp(dom, p);
-  }
-
-  for (const p in next) {
-    toAddProp(prev, next, p)
-      ? setProp(dom, p, next[p])
-      : toAddEvent(prev, next, p) && dom.addEventListener(p.toLowerCase().substring(2), next[p]);
-  }
-};
-
 const commitRoot = () => {
   deletions.forEach(commitWork);
   commitWork(wipRoot.child);
@@ -100,10 +60,9 @@ const commitWork = (fiber: Fiber) => {
   const domParent = domParentFiber.dom;
 
   if (fiber.effectTag === "PLACEMENT" && fiber.dom != null) {
-    domParent.appendChild(fiber.dom);
+    reconciler.insert(domParent, fiber.dom);
   } else if (fiber.effectTag === "UPDATE" && fiber.dom != null) {
-    updateDOM(fiber.dom, fiber.alternate.props, fiber.props);
-
+    reconciler.update(fiber.dom, fiber.alternate.props, fiber.props);
     // In here we need to append or insertBefore depending on keys - we need a keyed implementation: https://github.com/pomber/didact/issues/9
   } else if (fiber.effectTag === "DELETION") {
     commitDeletion(fiber, domParent);
@@ -114,9 +73,9 @@ const commitWork = (fiber: Fiber) => {
   commitWork(fiber.sibling);
 };
 
-const commitDeletion = (fiber, domParent) => {
+const commitDeletion = (fiber: Fiber, domParent) => {
   if (fiber.dom) {
-    domParent.removeChild(fiber.dom);
+    reconciler.remove(domParent, fiber.dom);
   } else {
     commitDeletion(fiber.child, domParent);
   }
@@ -172,7 +131,7 @@ const updateFunctionComponent = (fiber) => {
 
 const updateHostComponent = (fiber) => {
   if (!fiber.dom) {
-    fiber.dom = createDOM(fiber);
+    fiber.dom = reconciler.create(fiber.type, fiber.props);
   }
   reconcileChildren(fiber, fiber.props?.children);
 };
