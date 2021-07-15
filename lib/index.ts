@@ -18,10 +18,16 @@ const isEqual = (a, b) => JSON.stringify(a) === JSON.stringify(b); // bugged - J
 const setProp = (e: HTMLElement, n: string, v: any) => (e.setAttribute ? e.setAttribute(n, v) : (e[n] = v));
 const removeProp = (e: HTMLElement, n: string) => (e.removeAttribute ? e.removeAttribute(n) : (e[n] = ""));
 
-const isEvent = (key: string) => key.startsWith("on");
-const isProperty = (key: string) => key !== "children" && !isEvent(key);
-const isNew = (prev: Props, next: Props) => (key: string) => prev[key] !== next[key];
-const isGone = (prev: Props, next: Props) => (key: string) => !(key in next);
+const isEvent = (p: string) => p.startsWith("on");
+const isProp = (p: string) => p !== "children" && !isEvent(p);
+const isNew = (prev: Props, next: Props, p: string) => prev[p] !== next[p];
+const isGone = (next: Props, p: string) => !(p in next);
+
+const toAddProp = (prev: Props, next: Props, n: string) => isProp(n) && isNew(prev, next, n);
+const toDelProp = (prev: Props, next: Props, n: string) => isProp(n) && isGone(next, n);
+
+const toAddEvent = (prev: Props, next: Props, n: string) => isEvent(n) && isNew(prev, next, n);
+const toDelEvent = (prev: Props, next: Props, n: string) => isEvent(n) && (isGone(next, n) || isNew(prev, next, n));
 
 // LIB
 
@@ -62,30 +68,19 @@ const createDOM = (fiber: Fiber): HTMLElement => {
   updateDOM(dom, { children: [] }, fiber.props);
   return dom;
 };
-const updateDOM = (dom: HTMLElement, prevProps: Props, nextProps: Props) => {
-  // Remove old or changed event listeners
-  Object.keys(prevProps || {})
-    .filter(isEvent)
-    .filter((key) => !(key in nextProps) || isNew(prevProps, nextProps)(key))
-    .forEach((name) => dom.removeEventListener(name.toLowerCase().substring(2), prevProps[name]));
 
-  // Remove old properties
-  Object.keys(prevProps || {})
-    .filter(isProperty)
-    .filter(isGone(prevProps, nextProps))
-    .forEach((name) => removeProp(dom, name));
+const updateDOM = (dom: HTMLElement, prev: Props, next: Props) => {
+  for (const p in prev) {
+    toDelEvent(prev, next, p)
+      ? dom.removeEventListener(p.toLowerCase().substring(2), prev[p])
+      : toDelProp(prev, next, p) && removeProp(dom, p);
+  }
 
-  // Set new or changed properties
-  Object.keys(nextProps || {})
-    .filter(isProperty)
-    .filter(isNew(prevProps, nextProps))
-    .forEach((name) => setProp(dom, name, nextProps[name]));
-
-  // Add event listeners
-  Object.keys(nextProps || {})
-    .filter(isEvent)
-    .filter(isNew(prevProps, nextProps))
-    .forEach((name) => dom.addEventListener(name.toLowerCase().substring(2), nextProps[name]));
+  for (const p in next) {
+    toAddProp(prev, next, p)
+      ? setProp(dom, p, next[p])
+      : toAddEvent(prev, next, p) && dom.addEventListener(p.toLowerCase().substring(2), next[p]);
+  }
 };
 
 const commitRoot = () => {
