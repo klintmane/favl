@@ -14,6 +14,7 @@ let hookIndex = null;
 
 const isEqual = (a, b) => JSON.stringify(a) === JSON.stringify(b); // bugged - JSON.stringify does not ensure order!
 
+// e.(set|remove)Attribute fix issues with svg elements, while the latter works with text nodes
 const setProp = (e: HTMLElement, n: string, v: any) => (e.setAttribute ? e.setAttribute(n, v) : (e[n] = v));
 const removeProp = (e: HTMLElement, n: string) => (e.removeAttribute ? e.removeAttribute(n) : (e[n] = ""));
 
