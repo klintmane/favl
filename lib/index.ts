@@ -31,7 +31,7 @@ const createTextFiber = (txt: string): Fiber => ({
 
 const createFiber = (type: Elem, p?: Props, ...ch): Fiber => ({
   type,
-  props: { ...p, children: ch.map((c) => (typeof c === "object" ? c : createTextFiber(c))) },
+  props: { ...p, children: ch.flat().map((c) => (typeof c === "object" ? c : createTextFiber(c))) },
 });
 export const h = createFiber;
 
