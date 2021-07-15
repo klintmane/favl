@@ -237,7 +237,7 @@ const reconcileChildren = (wipFiber, elements = []) => {
 
 // Hooks
 
-export const useState = <T>(initial: T): [T, (action: (prevState: T) => T) => void] => {
+export const useState = <T>(initial: T): [T, (action: T | ((prevState: T) => T)) => void] => {
   const oldHook = wipFiber.alternate && wipFiber.alternate.hooks && wipFiber.alternate.hooks[hookIndex];
   const hook = { state: oldHook ? oldHook.state : initial, queue: [] };
 
@@ -245,7 +245,6 @@ export const useState = <T>(initial: T): [T, (action: (prevState: T) => T) => vo
   const actions = oldHook ? oldHook.queue : [];
   actions.forEach((action) => {
     hook.state = typeof action === "function" ? action(hook.state) : action;
-    hook.state = action;
   });
 
   const setState = (action) => {
