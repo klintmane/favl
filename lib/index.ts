@@ -1,6 +1,11 @@
 import type { Fiber, Props } from "./types";
 import reconciler from "./dom";
 
+// @ts-ignore
+const scheduler = window.requestIdleCallback;
+// @ts-ignore
+scheduler.cancel = window.cancelIdleCallback;
+
 // STATE
 
 export const Fragment = null; // disable fragments
@@ -35,8 +40,7 @@ export const render = (element: Fiber, container) => {
 };
 
 const unmount = () => {
-  //@ts-ignore
-  window.cancelIdleCallback(workLoop);
+  scheduler.cancel(workLoop);
   nextUnitOfWork = null;
   currentRoot = null;
   wipRoot = null;
@@ -92,12 +96,10 @@ const workLoop = (deadline) => {
     commitRoot();
   }
 
-  //@ts-ignore
-  window.requestIdleCallback(workLoop);
+  scheduler(workLoop);
 };
 
-//@ts-ignore
-window.requestIdleCallback(workLoop);
+scheduler(workLoop);
 
 const performUnitOfWork = (fiber) => {
   const isFunctionComponent = fiber.type instanceof Function;
@@ -136,51 +138,33 @@ const updateHostComponent = (fiber) => {
   reconcileChildren(fiber, fiber.props?.children);
 };
 
-const reconcileChildren = (wipFiber, elements = []) => {
+const reconcileChildren = (wip, elements = []) => {
   let index = 0;
-  let oldFiber = wipFiber.alternate && wipFiber.alternate.child;
+  let old = wip.alternate && wip.alternate.child;
   let prevSibling = null;
 
-  while (index < elements.length || oldFiber != null) {
-    const element = elements[index];
+  while (index < elements.length || old != null) {
+    const el = elements[index];
 
-    let newFiber = null;
-    const sameType = oldFiber && element && element.type == oldFiber.type;
+    const sameType = old && el && el.type == old.type;
+    const newFiber = sameType
+      ? { type: old.type, props: el.props, dom: old.dom, parent: wip, alternate: old, effectTag: "UPDATE" }
+      : el
+      ? { type: el.type, props: el.props, dom: null, parent: wip, altername: null, effectTag: "PLACEMENT" }
+      : null;
 
-    if (sameType) {
-      newFiber = {
-        type: oldFiber.type,
-        props: element.props,
-        dom: oldFiber.dom,
-        parent: wipFiber,
-        alternate: oldFiber,
-        effectTag: "UPDATE",
-      };
+    if (old && !sameType) {
+      old.effectTag = "DELETION";
+      deletions.push(old);
     }
 
-    if (element && !sameType) {
-      newFiber = {
-        type: element.type,
-        props: element.props,
-        dom: null,
-        parent: wipFiber,
-        altername: null,
-        effectTag: "PLACEMENT",
-      };
-    }
-
-    if (oldFiber && !sameType) {
-      oldFiber.effectTag = "DELETION";
-      deletions.push(oldFiber);
-    }
-
-    if (oldFiber) {
-      oldFiber = oldFiber.sibling;
+    if (old) {
+      old = old.sibling;
     }
 
     if (index === 0) {
-      wipFiber.child = newFiber;
-    } else if (element) {
+      wip.child = newFiber;
+    } else if (el) {
       prevSibling.sibling = newFiber;
     }
 
@@ -191,77 +175,41 @@ const reconcileChildren = (wipFiber, elements = []) => {
 
 // Hooks
 
+const getHook = (v) => {
+  const old = wipFiber.alternate && wipFiber.alternate.hooks && wipFiber.alternate.hooks[hookIndex++];
+  const curr = typeof v == "function" ? v(old) : v;
+  wipFiber.hooks.push(curr);
+  return [curr, old];
+};
+
 export const useState = <T>(initial: T): [T, (action: T | ((prevState: T) => T)) => void] => {
-  const oldHook = wipFiber.alternate && wipFiber.alternate.hooks && wipFiber.alternate.hooks[hookIndex];
-  const hook = { state: oldHook ? oldHook.state : initial, queue: [] };
+  const [curr, old] = getHook((o) => ({ state: o?.state || initial, queue: [] }));
 
   // Apply the queued setState actions
-  const actions = oldHook ? oldHook.queue : [];
-  actions.forEach((action) => {
-    hook.state = typeof action === "function" ? action(hook.state) : action;
-  });
+  const actions = old ? old.queue : [];
+  actions.forEach((a) => (curr.state = typeof a === "function" ? a(curr.state) : a));
 
   const setState = (action) => {
-    hook.queue.push(action);
+    // console.log("state set to:", action);
+    curr.queue.push(action);
     wipRoot = { dom: currentRoot && currentRoot.dom, props: currentRoot && currentRoot.props, alternate: currentRoot };
     nextUnitOfWork = wipRoot;
     deletions = [];
   };
 
-  wipFiber.hooks.push(hook);
-  hookIndex++;
-
-  return [hook.state, setState];
+  return [curr.state, setState];
 };
 
 export const useEffect = (cb: () => void, deps: any[]) => {
-  const oldHook = wipFiber.alternate && wipFiber.alternate.hooks && wipFiber.alternate.hooks[hookIndex];
-
-  const hook = { deps };
-
-  if (!oldHook) {
-    // invoke callback if this is the first time
-    cb();
-  } else {
-    if (depsChanged(oldHook.deps, hook.deps)) {
-      cb();
-    }
-  }
-
-  wipFiber.hooks.push(hook);
-  hookIndex++;
-};
-
-export const useCallback = <T>(cb: T, deps: any[]): T => {
-  return useMemo(() => cb, deps);
+  const [curr, old] = getHook(deps);
+  if (!old || depsChanged(old, curr)) cb();
 };
 
 export const useMemo = <T>(compute: () => T, deps: any[]): T => {
-  const oldHook = wipFiber.alternate && wipFiber.alternate.hooks && wipFiber.alternate.hooks[hookIndex];
-  const hook = { value: null, deps };
-
-  if (oldHook) {
-    if (depsChanged(oldHook.deps, hook.deps)) {
-      hook.value = compute();
-    } else {
-      hook.value = oldHook.value;
-    }
-  } else {
-    hook.value = compute();
-  }
-
-  wipFiber.hooks.push(hook);
-  hookIndex++;
-
-  return hook.value;
+  const [curr, old] = getHook({ value: null, deps });
+  curr.value = !old || (old && depsChanged(old.deps, curr.deps)) ? compute() : old.value;
+  return curr.value;
 };
 
-export const useRef = <T>(initial: T): { current: T } => {
-  const oldHook = wipFiber.alternate && wipFiber.alternate.hooks && wipFiber.alternate.hooks[hookIndex];
-  const hook = { value: oldHook ? oldHook.value : { current: initial } };
-
-  wipFiber.hooks.push(hook);
-  hookIndex++;
-
-  return hook.value;
-};
+export const useCallback = <T>(cb: T, deps: any[]) => useMemo(() => cb, deps);
+export const useRef = <T>(val: T) => getHook((o) => o || { current: val })[0] as { current: T };
