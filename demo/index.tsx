@@ -1,4 +1,5 @@
-import { h, render, useState } from "../lib";
+import { h, useState } from "../lib";
+import { render } from "../lib/dom";
 import Stress from "./stress";
 
 const Counter = () => {

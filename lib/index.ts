@@ -1,5 +1,4 @@
-import type { Fiber, Props } from "./types";
-import reconciler from "./dom";
+import type { Fiber, Props, Renderer } from "./types";
 export * from "./hooks";
 
 // @ts-ignore
@@ -16,6 +15,9 @@ let wipRoot: Fiber = null;
 let deletions: Fiber[] = null;
 let wipFiber: Fiber = null;
 let hookIndex = null;
+let renderer = null;
+
+export const createRenderer = <T>(def: Renderer<T>) => ((renderer = def), render);
 
 export const getHook = (v) => {
   const old = wipFiber.alternate && wipFiber.alternate.hooks && wipFiber.alternate.hooks[hookIndex++];
@@ -66,16 +68,16 @@ const commitWork = (f: Fiber) => {
 
   const dom = target.dom;
 
-  f.dom && f.effect == "INSERT" && reconciler.insert(dom, f.dom);
-  f.dom && f.effect == "UPDATE" && reconciler.update(f.dom, f.alternate.props, f.props); // In here we need to append or insertBefore depending on keys - we need a keyed implementation: https://github.com/pomber/didact/issues/9
+  f.dom && f.effect == "INSERT" && renderer.insert(dom, f.dom);
+  f.dom && f.effect == "UPDATE" && renderer.update(f.dom, f.alternate.props, f.props); // In here we need to append or insertBefore depending on keys - we need a keyed implementation: https://github.com/pomber/didact/issues/9
   f.effect == "DELETE" ? commitDeletion(f, dom) : (commitWork(f.child), commitWork(f.sibling));
 };
 
 const commitDeletion = (f: Fiber, container) =>
-  f.dom ? reconciler.remove(container, f.dom) : commitDeletion(f.child, container);
+  f.dom ? renderer.remove(container, f.dom) : commitDeletion(f.child, container);
 
 const loop = () => {
-  while (nextUnitOfWork) {
+  while (nextUnitOfWork && renderer) {
     nextUnitOfWork = performUnitOfWork(nextUnitOfWork);
   }
   !nextUnitOfWork && wipRoot && commitRoot();
@@ -109,7 +111,8 @@ const updateFunctionComponent = (f: Fiber) => {
 };
 
 const updateHostComponent = (f: Fiber) => {
-  !f.dom && (f.dom = reconciler.create(f.type, f.props));
+  !f.dom && (f.dom = renderer.create(f.type, f.props));
+  renderer.update(f.dom, { children: [] }, f.props);
   reconcileChildren(f, f.props?.children);
 };
 

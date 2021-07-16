@@ -19,3 +19,10 @@ export type Fiber<T = Elem> = {
   alternate?: Fiber<T>;
   effect?: "INSERT" | "UPDATE" | "DELETE";
 };
+
+export type Renderer<T = Elem> = {
+  update: (dom: T, prev: Props, next: Props) => any;
+  create: (type: any, props: Props) => T;
+  insert: (parent: T, el: T) => any;
+  remove: (parent: T, el: T) => any;
+};
