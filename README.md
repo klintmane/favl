@@ -4,7 +4,7 @@
 
 <h1 align="center">favl</h1>
 
-<p align="center">Flavor agnostic virtual layer</p>
+<p align="center">Framework agnostic view layer</p>
 
 <br>
 
