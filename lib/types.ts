@@ -13,6 +13,6 @@ export type Fiber<T = Elem> = {
   sibling?: Fiber<T>;
   alternate?: Fiber<T>;
   type?: any;
-  effectTag?: "PLACEMENT" | "UPDATE" | "DELETION";
+  effect?: "INSERT" | "UPDATE" | "DELETE";
   props: Props<T>;
 };

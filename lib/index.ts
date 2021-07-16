@@ -26,10 +26,7 @@ export const getHook = (v) => {
 
 // LIB
 
-const createTextFiber = (txt: string): Fiber => ({
-  type: "TEXT_ELEMENT",
-  props: { nodeValue: txt, children: [] },
-});
+const createTextFiber = (txt: string): Fiber => ({ type: "TEXT", props: { nodeValue: txt, children: [] } });
 
 const createFiber = (type: string, p?: Props, ...ch): Fiber => ({
   type,
@@ -45,7 +42,7 @@ export const render = (f?: Fiber, dom = currentRoot?.dom) => {
 };
 
 const unmount = () => {
-  scheduler.cancel(workLoop);
+  scheduler.cancel(loop);
   nextUnitOfWork = null;
   currentRoot = null;
   wipRoot = null;
@@ -62,38 +59,30 @@ const commitRoot = () => {
 const commitWork = (f: Fiber) => {
   if (!f) return;
 
-  let domParentFiber = f.parent;
-  while (!domParentFiber.dom) {
-    domParentFiber = domParentFiber.parent;
-  }
-  const domParent = domParentFiber.dom;
-
-  if (f.effectTag === "PLACEMENT" && f.dom != null) {
-    reconciler.insert(domParent, f.dom);
-  } else if (f.effectTag === "UPDATE" && f.dom != null) {
-    reconciler.update(f.dom, f.alternate.props, f.props);
-    // In here we need to append or insertBefore depending on keys - we need a keyed implementation: https://github.com/pomber/didact/issues/9
-  } else if (f.effectTag === "DELETION") {
-    commitDeletion(f, domParent);
-    return;
+  let target = f.parent; // Get closes target dom element
+  while (!target.dom) {
+    target = target.parent;
   }
 
-  commitWork(f.child);
-  commitWork(f.sibling);
+  const dom = target.dom;
+
+  f.dom && f.effect == "INSERT" && reconciler.insert(dom, f.dom);
+  f.dom && f.effect == "UPDATE" && reconciler.update(f.dom, f.alternate.props, f.props); // In here we need to append or insertBefore depending on keys - we need a keyed implementation: https://github.com/pomber/didact/issues/9
+  f.effect == "DELETE" ? commitDeletion(f, dom) : (commitWork(f.child), commitWork(f.sibling));
 };
 
 const commitDeletion = (f: Fiber, container) =>
   f.dom ? reconciler.remove(container, f.dom) : commitDeletion(f.child, container);
 
-const workLoop = (deadline) => {
+const loop = () => {
   while (nextUnitOfWork) {
     nextUnitOfWork = performUnitOfWork(nextUnitOfWork);
   }
   !nextUnitOfWork && wipRoot && commitRoot();
-  scheduler(workLoop);
+  scheduler(loop);
 };
 
-scheduler(workLoop);
+scheduler(loop);
 
 const performUnitOfWork = (f: Fiber) => {
   const isFunctionComponent = f.type instanceof Function;
@@ -124,35 +113,30 @@ const updateHostComponent = (f: Fiber) => {
   reconcileChildren(f, f.props?.children);
 };
 
-const reconcileChildren = (wip: Fiber, elements = []) => {
-  let index = 0;
-  let old = wip.alternate && wip.alternate.child;
+const reconcileChildren = (wip: Fiber, elements: Fiber[] = []) => {
+  let i = 0;
+  let prev = wip.alternate && wip.alternate.child;
   let prevSibling = null;
 
-  while (index < elements.length || old != null) {
-    const el = elements[index];
+  while (i < elements.length || prev != null) {
+    const el = elements[i];
 
-    const sameType = old && el && el.type == old.type;
-    const newFiber = sameType
-      ? { type: old.type, props: el.props, dom: old.dom, parent: wip, alternate: old, effectTag: "UPDATE" }
+    const preserve = prev && el && el.type == prev.type; // preserve the element?
+    const newFiber: Fiber = preserve
+      ? { type: prev.type, props: el.props, dom: prev.dom, parent: wip, alternate: prev, effect: "UPDATE" }
       : el
-      ? { type: el.type, props: el.props, dom: null, parent: wip, altername: null, effectTag: "PLACEMENT" }
+      ? { type: el.type, props: el.props, dom: null, parent: wip, alternate: null, effect: "INSERT" }
       : null;
 
-    if (old && !sameType) {
-      old.effectTag = "DELETION";
-      deletions.push(old);
+    if (prev && !preserve) {
+      prev.effect = "DELETE";
+      deletions.push(prev);
     }
 
-    old && (old = old.sibling);
-
-    if (index === 0) {
-      wip.child = newFiber;
-    } else if (el) {
-      prevSibling.sibling = newFiber;
-    }
+    prev && (prev = prev.sibling);
+    !i ? (wip.child = newFiber) : el && (prevSibling.sibling = newFiber);
 
     prevSibling = newFiber;
-    index++;
+    i++;
   }
 };
