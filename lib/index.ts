@@ -2,7 +2,7 @@ import type { Fiber, Props, Renderer } from "./types";
 export * from "./hooks";
 
 // @ts-ignore
-const scheduler = (x) => window.requestIdleCallback(x, { timeout: 50 });
+const scheduler = window.requestIdleCallback;
 // @ts-ignore
 scheduler.cancel = window.cancelIdleCallback;
 
@@ -17,7 +17,9 @@ let wipFiber: Fiber = null;
 let hookIndex = null;
 let renderer = null;
 
-export const createRenderer = <T>(def: Renderer<T>) => ((renderer = def), render);
+export const createRenderer = <T>(def: Renderer<T>) => (
+  (renderer = def), (...args) => (scheduler(loop), render(...args))
+);
 
 export const getHook = (v) => {
   const old = wipFiber.alternate && wipFiber.alternate.hooks && wipFiber.alternate.hooks[hookIndex++];
@@ -41,14 +43,6 @@ export const render = (f?: Fiber, dom = currentRoot?.dom) => {
   wipRoot = dom ? { dom, props: f ? { children: [f] } : currentRoot?.props, alternate: currentRoot } : wipRoot;
   nextUnitOfWork = wipRoot;
   deletions = [];
-};
-
-const unmount = () => {
-  scheduler.cancel(loop);
-  nextUnitOfWork = null;
-  currentRoot = null;
-  wipRoot = null;
-  deletions = null;
 };
 
 const commitRoot = () => {
@@ -76,15 +70,15 @@ const commitWork = (f: Fiber) => {
 const commitDeletion = (f: Fiber, container) =>
   f.dom ? renderer.remove(container, f.dom) : commitDeletion(f.child, container);
 
-const loop = () => {
-  while (nextUnitOfWork && renderer) {
+const loop = (deadline) => {
+  let shouldYield = false;
+  while (nextUnitOfWork && renderer && !shouldYield) {
     nextUnitOfWork = performUnitOfWork(nextUnitOfWork);
+    shouldYield = deadline.timeRemaining() < 1;
   }
   !nextUnitOfWork && wipRoot && commitRoot();
   scheduler(loop);
 };
-
-scheduler(loop);
 
 const performUnitOfWork = (f: Fiber) => {
   const isFunctionComponent = f.type instanceof Function;
