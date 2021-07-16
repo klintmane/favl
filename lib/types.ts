@@ -6,13 +6,16 @@ export interface Props<T = Elem> {
 }
 
 export type Fiber<T = Elem> = {
+  // vnode
+  type?: any;
+  props: Props<T>;
+
+  // fiber
   dom?: T;
   hooks?: any[];
   parent?: Fiber<T>;
   child?: Fiber<T>;
   sibling?: Fiber<T>;
   alternate?: Fiber<T>;
-  type?: any;
   effect?: "INSERT" | "UPDATE" | "DELETE";
-  props: Props<T>;
 };

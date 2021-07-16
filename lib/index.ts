@@ -114,11 +114,10 @@ const updateHostComponent = (f: Fiber) => {
 };
 
 const reconcileChildren = (wip: Fiber, elements: Fiber[] = []) => {
-  let i = 0;
   let prev = wip.alternate && wip.alternate.child;
   let prevSibling = null;
 
-  while (i < elements.length || prev != null) {
+  for (let i = 0; i < elements.length || prev != null; i++) {
     const el = elements[i];
 
     const preserve = prev && el && el.type == prev.type; // preserve the element?
@@ -137,6 +136,5 @@ const reconcileChildren = (wip: Fiber, elements: Fiber[] = []) => {
     !i ? (wip.child = newFiber) : el && (prevSibling.sibling = newFiber);
 
     prevSibling = newFiber;
-    i++;
   }
 };
