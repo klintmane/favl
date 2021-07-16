@@ -5,14 +5,8 @@ const depsChanged = (a: any[], b: any[]) => !a || a.length !== b.length || b.som
 export const useState = <T>(initial: T): [T, (action: T | ((prevState: T) => T)) => void] => {
   const [curr, old] = getHook((o) => ({ state: o?.state || initial, queue: [] }));
 
-  // Apply the queued setState actions
-  const actions = old ? old.queue : [];
-  actions.forEach((a) => (curr.state = typeof a === "function" ? a(curr.state) : a));
-
-  const setState = (action) => {
-    curr.queue.push(action);
-    render(); // renders the whole root
-  };
+  (old?.queue || []).forEach((a) => (curr.state = typeof a === "function" ? a(curr.state) : a)); // apply queued values
+  const setState = (action) => (curr.queue.push(action), render()); // push to queue and render
 
   return [curr.state, setState];
 };

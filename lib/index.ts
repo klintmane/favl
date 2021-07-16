@@ -38,10 +38,10 @@ const createFiber = (type: string, p?: Props, ...ch): Fiber => ({
 export const h = createFiber;
 
 // if element specified renders it into container (root render) otherwise performs a currenRoot re-render
-export const render = (f?: Fiber, container = currentRoot.dom) => {
-  wipRoot = { dom: container, props: f ? { children: [f] } : currentRoot.props, alternate: currentRoot };
-  deletions = [];
+export const render = (f?: Fiber, dom = currentRoot?.dom) => {
+  wipRoot = dom ? { dom, props: f ? { children: [f] } : currentRoot?.props, alternate: currentRoot } : wipRoot;
   nextUnitOfWork = wipRoot;
+  deletions = [];
 };
 
 const unmount = () => {
@@ -82,25 +82,14 @@ const commitWork = (f: Fiber) => {
   commitWork(f.sibling);
 };
 
-const commitDeletion = (f: Fiber, container) => {
-  if (f.dom) {
-    reconciler.remove(container, f.dom);
-  } else {
-    commitDeletion(f.child, container);
-  }
-};
+const commitDeletion = (f: Fiber, container) =>
+  f.dom ? reconciler.remove(container, f.dom) : commitDeletion(f.child, container);
 
 const workLoop = (deadline) => {
-  let shouldYield = false;
-  while (nextUnitOfWork && !shouldYield) {
+  while (nextUnitOfWork) {
     nextUnitOfWork = performUnitOfWork(nextUnitOfWork);
-    shouldYield = deadline.timeRemaining() < 1;
   }
-
-  if (!nextUnitOfWork && wipRoot) {
-    commitRoot();
-  }
-
+  !nextUnitOfWork && wipRoot && commitRoot();
   scheduler(workLoop);
 };
 
@@ -108,12 +97,7 @@ scheduler(workLoop);
 
 const performUnitOfWork = (f: Fiber) => {
   const isFunctionComponent = f.type instanceof Function;
-
-  if (isFunctionComponent) {
-    updateFunctionComponent(f);
-  } else {
-    updateHostComponent(f);
-  }
+  isFunctionComponent ? updateFunctionComponent(f) : updateHostComponent(f);
 
   if (f.child) {
     return f.child;
@@ -160,9 +144,7 @@ const reconcileChildren = (wip: Fiber, elements = []) => {
       deletions.push(old);
     }
 
-    if (old) {
-      old = old.sibling;
-    }
+    old && (old = old.sibling);
 
     if (index === 0) {
       wip.child = newFiber;
