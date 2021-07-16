@@ -1,16 +1,18 @@
-export interface Props<T = {}> {
+import type { Elem } from "./dom";
+
+export interface Props<T = Elem> {
   nodeValue?: string;
   children: Fiber<T>[];
 }
 
-export type Fiber<T = {}> = {
+export type Fiber<T = Elem> = {
   dom?: T;
   hooks?: any[];
   parent?: Fiber<T>;
   child?: Fiber<T>;
   sibling?: Fiber<T>;
   alternate?: Fiber<T>;
-  type?: string;
+  type?: any;
   effectTag?: "PLACEMENT" | "UPDATE" | "DELETION";
   props: Props<T>;
 };

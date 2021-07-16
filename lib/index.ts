@@ -1,8 +1,9 @@
 import type { Fiber, Props } from "./types";
 import reconciler from "./dom";
+export * from "./hooks";
 
 // @ts-ignore
-const scheduler = window.requestIdleCallback;
+const scheduler = (x) => window.requestIdleCallback(x, { timeout: 50 });
 // @ts-ignore
 scheduler.cancel = window.cancelIdleCallback;
 
@@ -16,9 +17,12 @@ let deletions: Fiber[] = null;
 let wipFiber: Fiber = null;
 let hookIndex = null;
 
-// UTILS
-
-const depsChanged = (a: any[], b: any[]) => !a || a.length !== b.length || b.some((arg, index) => arg !== a[index]);
+export const getHook = (v) => {
+  const old = wipFiber.alternate && wipFiber.alternate.hooks && wipFiber.alternate.hooks[hookIndex++];
+  const curr = typeof v == "function" ? v(old) : v;
+  wipFiber.hooks.push(curr);
+  return [curr, old];
+};
 
 // LIB
 
@@ -33,8 +37,9 @@ const createFiber = (type: string, p?: Props, ...ch): Fiber => ({
 });
 export const h = createFiber;
 
-export const render = (element: Fiber, container) => {
-  wipRoot = { dom: container, props: { children: [element] }, alternate: currentRoot };
+// if element specified renders it into container (root render) otherwise performs a currenRoot re-render
+export const render = (f?: Fiber, container = currentRoot.dom) => {
+  wipRoot = { dom: container, props: f ? { children: [f] } : currentRoot.props, alternate: currentRoot };
   deletions = [];
   nextUnitOfWork = wipRoot;
 };
@@ -54,34 +59,34 @@ const commitRoot = () => {
   wipRoot = null;
 };
 
-const commitWork = (fiber: Fiber) => {
-  if (!fiber) return;
+const commitWork = (f: Fiber) => {
+  if (!f) return;
 
-  let domParentFiber = fiber.parent;
+  let domParentFiber = f.parent;
   while (!domParentFiber.dom) {
     domParentFiber = domParentFiber.parent;
   }
   const domParent = domParentFiber.dom;
 
-  if (fiber.effectTag === "PLACEMENT" && fiber.dom != null) {
-    reconciler.insert(domParent, fiber.dom);
-  } else if (fiber.effectTag === "UPDATE" && fiber.dom != null) {
-    reconciler.update(fiber.dom, fiber.alternate.props, fiber.props);
+  if (f.effectTag === "PLACEMENT" && f.dom != null) {
+    reconciler.insert(domParent, f.dom);
+  } else if (f.effectTag === "UPDATE" && f.dom != null) {
+    reconciler.update(f.dom, f.alternate.props, f.props);
     // In here we need to append or insertBefore depending on keys - we need a keyed implementation: https://github.com/pomber/didact/issues/9
-  } else if (fiber.effectTag === "DELETION") {
-    commitDeletion(fiber, domParent);
+  } else if (f.effectTag === "DELETION") {
+    commitDeletion(f, domParent);
     return;
   }
 
-  commitWork(fiber.child);
-  commitWork(fiber.sibling);
+  commitWork(f.child);
+  commitWork(f.sibling);
 };
 
-const commitDeletion = (fiber: Fiber, domParent) => {
-  if (fiber.dom) {
-    reconciler.remove(domParent, fiber.dom);
+const commitDeletion = (f: Fiber, container) => {
+  if (f.dom) {
+    reconciler.remove(container, f.dom);
   } else {
-    commitDeletion(fiber.child, domParent);
+    commitDeletion(f.child, container);
   }
 };
 
@@ -101,20 +106,20 @@ const workLoop = (deadline) => {
 
 scheduler(workLoop);
 
-const performUnitOfWork = (fiber) => {
-  const isFunctionComponent = fiber.type instanceof Function;
+const performUnitOfWork = (f: Fiber) => {
+  const isFunctionComponent = f.type instanceof Function;
 
   if (isFunctionComponent) {
-    updateFunctionComponent(fiber);
+    updateFunctionComponent(f);
   } else {
-    updateHostComponent(fiber);
+    updateHostComponent(f);
   }
 
-  if (fiber.child) {
-    return fiber.child;
+  if (f.child) {
+    return f.child;
   }
 
-  let nextFiber = fiber;
+  let nextFiber = f;
   while (nextFiber) {
     if (nextFiber.sibling) {
       return nextFiber.sibling;
@@ -123,22 +128,19 @@ const performUnitOfWork = (fiber) => {
   }
 };
 
-const updateFunctionComponent = (fiber) => {
-  wipFiber = fiber;
+const updateFunctionComponent = (f: Fiber) => {
+  wipFiber = f;
   hookIndex = 0;
   wipFiber.hooks = [];
-  const children = [fiber.type(fiber.props)];
-  reconcileChildren(fiber, children);
+  reconcileChildren(f, [f.type(f.props)]);
 };
 
-const updateHostComponent = (fiber) => {
-  if (!fiber.dom) {
-    fiber.dom = reconciler.create(fiber.type, fiber.props);
-  }
-  reconcileChildren(fiber, fiber.props?.children);
+const updateHostComponent = (f: Fiber) => {
+  !f.dom && (f.dom = reconciler.create(f.type, f.props));
+  reconcileChildren(f, f.props?.children);
 };
 
-const reconcileChildren = (wip, elements = []) => {
+const reconcileChildren = (wip: Fiber, elements = []) => {
   let index = 0;
   let old = wip.alternate && wip.alternate.child;
   let prevSibling = null;
@@ -172,44 +174,3 @@ const reconcileChildren = (wip, elements = []) => {
     index++;
   }
 };
-
-// Hooks
-
-const getHook = (v) => {
-  const old = wipFiber.alternate && wipFiber.alternate.hooks && wipFiber.alternate.hooks[hookIndex++];
-  const curr = typeof v == "function" ? v(old) : v;
-  wipFiber.hooks.push(curr);
-  return [curr, old];
-};
-
-export const useState = <T>(initial: T): [T, (action: T | ((prevState: T) => T)) => void] => {
-  const [curr, old] = getHook((o) => ({ state: o?.state || initial, queue: [] }));
-
-  // Apply the queued setState actions
-  const actions = old ? old.queue : [];
-  actions.forEach((a) => (curr.state = typeof a === "function" ? a(curr.state) : a));
-
-  const setState = (action) => {
-    // console.log("state set to:", action);
-    curr.queue.push(action);
-    wipRoot = { dom: currentRoot && currentRoot.dom, props: currentRoot && currentRoot.props, alternate: currentRoot };
-    nextUnitOfWork = wipRoot;
-    deletions = [];
-  };
-
-  return [curr.state, setState];
-};
-
-export const useEffect = (cb: () => void, deps: any[]) => {
-  const [curr, old] = getHook(deps);
-  if (!old || depsChanged(old, curr)) cb();
-};
-
-export const useMemo = <T>(compute: () => T, deps: any[]): T => {
-  const [curr, old] = getHook({ value: null, deps });
-  curr.value = !old || (old && depsChanged(old.deps, curr.deps)) ? compute() : old.value;
-  return curr.value;
-};
-
-export const useCallback = <T>(cb: T, deps: any[]) => useMemo(() => cb, deps);
-export const useRef = <T>(val: T) => getHook((o) => o || { current: val })[0] as { current: T };

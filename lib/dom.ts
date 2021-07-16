@@ -1,17 +1,17 @@
 import type { Props } from "./types";
 
-type Element = HTMLElement | Text | SVGSVGElement;
+export type Elem = HTMLElement | Text | SVGSVGElement;
 
 // e.(set|remove)Attribute fix issues with svg elements, while the latter works with text nodes
-const setProp = (e: Element, n: string, v: any) => ("setAttribute" in e ? e.setAttribute(n, v) : (e[n] = v));
-const removeProp = (e: Element, n: string) => ("removeAttribute" in e ? e.removeAttribute(n) : (e[n] = ""));
+const setProp = (e: Elem, n: string, v: any) => ("setAttribute" in e ? e.setAttribute(n, v) : (e[n] = v));
+const removeProp = (e: Elem, n: string) => ("removeAttribute" in e ? e.removeAttribute(n) : (e[n] = ""));
 
 const isEvent = (p: string) => p.startsWith("on");
 const isProp = (p: string) => p !== "children" && !isEvent(p);
 const isNew = (prev: Props, next: Props, p: string) => prev[p] !== next[p];
 const isGone = (next: Props, p: string) => !(p in next);
 
-const update = (dom: Element, prev: Props, next: Props) => {
+const update = (dom: Elem, prev: Props, next: Props) => {
   for (const p in prev) {
     isEvent(p) && (isGone(next, p) || isNew(prev, next, p)) // conditionally remove listener
       ? dom.removeEventListener(p.toLowerCase().substring(2), prev[p])
@@ -37,7 +37,7 @@ const create = (type: string, props: Props) => {
   return dom;
 };
 
-const insert = (parent: Element, el: Element) => parent.appendChild(el);
-const remove = (parent: Element, el: Element) => parent.removeChild(el);
+const insert = (parent: Elem, el: Elem) => parent.appendChild(el);
+const remove = (parent: Elem, el: Elem) => parent.removeChild(el);
 
 export default { update, create, remove, insert };
