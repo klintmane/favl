@@ -8,12 +8,13 @@ scheduler.cancel = window.cancelIdleCallback;
 
 // STATE
 
-export const Fragment = null; // disable fragments
+export const Fragment = null;
 let nextUnitOfWork: Fiber = null;
 let currentRoot: Fiber = null;
 let wipRoot: Fiber = null;
 let deletions: Fiber[] = null;
 let wipFiber: Fiber = null;
+
 let hookIndex = null;
 let renderer = null;
 
@@ -41,6 +42,7 @@ export const h = createFiber;
 // if element specified renders it into container (root render) otherwise performs a currenRoot re-render
 export const render = (f?: Fiber, dom = currentRoot?.dom) => {
   wipRoot = dom ? { dom, props: f ? { children: [f] } : currentRoot?.props, alternate: currentRoot } : wipRoot;
+  console.log(currentRoot, wipRoot);
   nextUnitOfWork = wipRoot;
   deletions = [];
 };

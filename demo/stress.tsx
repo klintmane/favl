@@ -15,10 +15,10 @@ export default () => {
 
   // Infinite animation loop
   useEffect(() => {
-    const a = setTimeout(() => setState((s) => ({ ...s, tick: tick + 1 })));
+    const a = setTimeout(() => setState((s) => ({ ...s, tick: s.tick + 1 })));
     return () => clearTimeout(a);
     // setState((s) => ({ ...s, tick: tick + 1 }));
-  }, [tick, setState]);
+  }, []);
 
   // setState({ tick: Math.random() });
 
@@ -37,7 +37,7 @@ export default () => {
       removeEventListener("pointerdown", grow);
       removeEventListener("pointerup", shrink);
     };
-  }, [setState]); // setState is not stable
+  }, []); // setState is not stable
 
   const max = COUNT + Math.round(Math.sin((tick / 90) * 2 * Math.PI) * COUNT * 0.5);
 

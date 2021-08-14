@@ -1,4 +1,4 @@
-import { h, useState } from "../lib";
+import { h, Fragment, useState } from "../lib";
 import { render } from "../lib/dom";
 import Stress from "./stress";
 
@@ -7,9 +7,12 @@ const Counter = () => {
 
   return (
     <div>
-      <button onClick={() => setCount((c) => c - 1)}>-</button>
-      <span>{count}</span>
-      <button onClick={() => setCount((c) => c + 1)}>+</button>
+      <button onClick={() => setCount(count - 1)}>-</button>
+      {["Count ", "is: "]}
+      <>
+        <span>{count}</span>
+      </>
+      <button onClick={() => setCount(count + 1)}>+</button>
     </div>
   );
 };
@@ -17,7 +20,7 @@ const Counter = () => {
 const App = () => {
   const [test, setTest] = useState(0);
 
-  return true ? (
+  return false ? (
     <Stress />
   ) : (
     <div>
